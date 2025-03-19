@@ -49,11 +49,15 @@ if __name__ == "__main__":
     parser.add_argument("num_lines", type=int, help="Number of lines in image")
     args = parser.parse_args()
 
-    img_file = f"images/{int(time.time())}.jpg"
+    image_dir = "images"
+    img_file = f"{image_dir}/{int(time.time())}.jpg"
     print(f"Capturing camera frame: camera_id: {args.camera_id}, num_lines: {args.num_lines}, output: {img_file}")
     
     # Change working directory to the script directory
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
+    if not os.path.exists(image_dir):
+        os.makedirs(image_dir)
     
     # Read the API token from a file
     try:
