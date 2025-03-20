@@ -169,24 +169,30 @@ class LineAnalyzer:
         plt.imshow(self.image)
         
         top_lines = self.get_smoothest_lines(5)
+        best_line = top_lines[0]
         colors = plt.cm.viridis(np.linspace(0, 1, len(top_lines)))
-        
-        # Draw contours for each line
-        for (line_num, s1, s2), color in zip(top_lines, colors):
-            contours, *_ = self.lines[line_num-1]
-            for cnt in contours:
-                # Draw each contour with a unique color per line
-                plt.plot(cnt[:, 0, 0], cnt[:, 0, 1], color=color, linewidth=2)
-            
-            # Add a label point
-            x, y, w, h = cv2.boundingRect(contours[0])
-            # Position label to the right of the bounding rectangle
-            plt.text(x+w+15, y+h, f'Line {line_num} (S1:{s1:.1f}, S2:{s2:.1f})', 
-                     color=color, fontsize=9, backgroundcolor='white')
         
         # Add rectangles for problematic regions
         for start, end in self.problematic_regions:
             plt.axvspan(start, end, color='red', alpha=0.2)
+
+        # Draw contours for each line
+        for (line_num, s1, s2), color in zip(top_lines, colors):
+            contours, *_ = self.lines[line_num-1]
+            # Draw each contour with a unique color per line and fill the contour area
+            for cnt in contours:
+                x = cnt[:, 0, 0]
+                y = cnt[:, 0, 1]
+                plt.fill(x, y, color=color, alpha=0.4)
+                plt.plot(x, y, color=color, linewidth=2)
+            
+            # Add a label point
+            x, y, w, h = cv2.boundingRect(contours[0])
+            # Position label to the right of the bounding rectangle
+            label_text = f'Line {line_num} (S1:{s1:.1f}, S2:{s2:.1f})'
+            fontweight='bold' if line_num == best_line[0] else 'normal'
+            plt.text(x+w+15, y+h-10, label_text, fontweight=fontweight,
+                     color=color, fontsize=9, backgroundcolor='white')
         
         plt.title("Lines with Contours")
         plt.tight_layout()
