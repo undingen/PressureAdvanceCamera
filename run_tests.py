@@ -6,21 +6,23 @@
 # This file may be distributed under the terms of the GNU GPLv3 license.
 
 import os
-import sys
 import re
+import sys
 
 import cv2
 
-from retrieve_rect import RetrieveRect
 from line_analyzer import LineAnalyzer
+from retrieve_rect import RetrieveRect
 
-def get_best_line(image_path, debug = False):
+
+def get_best_line(image_path, debug=False):
     seg_img = cv2.imread(image_path.replace(".jpg", "_out.png"), cv2.IMREAD_UNCHANGED)
 
-    # Disable segmenting the images via the API in the tests (because would cost something). 
-    # Instead just use the prepared images 
+    # Disable segmenting the images via the API in the tests (because would cost something).
+    # Instead just use the prepared images
     if seg_img is None and 0:
         from segment_image import SegmentImage
+
         segmenter = SegmentImage()
         seg_img = segmenter.segment(image_path)
 
@@ -35,10 +37,11 @@ def get_best_line(image_path, debug = False):
 
     return smoothest[0][0]
 
+
 def main():
     failing_tests = []
     num_passed_tests = 0
-    pattern = re.compile(r'_(\d+(?:,\d+)*)\.jpg$', re.IGNORECASE)
+    pattern = re.compile(r"_(\d+(?:,\d+)*)\.jpg$", re.IGNORECASE)
     for root, _, files in os.walk("test_data"):
         for file in files:
             if file.lower().endswith(".jpg"):
@@ -47,7 +50,7 @@ def main():
                 if not m:
                     print(f"Skipping {path}: filename pattern not matched")
                     continue
-                expected_values = [int(val) for val in m.group(1).split(',')]
+                expected_values = [int(val) for val in m.group(1).split(",")]
 
                 try:
                     result = get_best_line(path, debug=False)
@@ -57,11 +60,15 @@ def main():
                     continue
 
                 if result in expected_values:
-                    #print(f"PASS: {path} Expected one of {expected_values}, Got: {result}")
+                    # print(f"PASS: {path} Expected one of {expected_values}, Got: {result}")
                     num_passed_tests += 1
                 else:
-                    print(f"FAIL: {path} Expected one of {expected_values}, Got: {result}")
-                    failing_tests.append(f"{path} (Expected one of {expected_values}, Got: {result})")
+                    print(
+                        f"FAIL: {path} Expected one of {expected_values}, Got: {result}"
+                    )
+                    failing_tests.append(
+                        f"{path} (Expected one of {expected_values}, Got: {result})"
+                    )
 
     if failing_tests:
         print()
@@ -73,6 +80,7 @@ def main():
         for fail in failing_tests:
             print(fail)
     sys.exit(1 if failing_tests else 0)
+
 
 if __name__ == "__main__":
     main()

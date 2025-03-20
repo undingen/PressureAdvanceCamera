@@ -5,8 +5,8 @@
 # This file may be distributed under the terms of the GNU GPLv3 license.
 
 import os
-import subprocess
 import re
+import subprocess
 
 """
 Default Configuration:
@@ -31,19 +31,22 @@ timeout: 600
 speed: 100              # Speed for the fast segments
 """
 
+
 class PressureAdvanceCamera:
     def __init__(self, config):
         self.name = config.get_name().split()[-1]
         self.printer = config.get_printer()
         self.gcode = self.printer.lookup_object("gcode")
-        
-        self.script_path = config.get("script_path", "~/PressureAdvanceCamera/pa_calibrate.py")
+
+        self.script_path = config.get(
+            "script_path", "~/PressureAdvanceCamera/pa_calibrate.py"
+        )
         self.script_path = os.path.expanduser(self.script_path)
         if not os.path.exists(self.script_path):
             raise config.error(f"Script {self.script_path} not found")
-            
+
         # Configuration parameters
-        self.timeout = config.getfloat("timeout", 60.0*10, above=0.0)
+        self.timeout = config.getfloat("timeout", 60.0 * 10, above=0.0)
         self.camera_id = config.getint("camera_id", 0, minval=0)
         self.camera_offset_x = config.getfloat("camera_offset_x")
         self.camera_offset_y = config.getfloat("camera_offset_y")
@@ -56,32 +59,31 @@ class PressureAdvanceCamera:
         self.pa_start = config.getfloat("pa_start", 0.0, minval=0.0)
         self.pa_end = config.getfloat("pa_end", 0.1, above=0.0)
         self.pa_step = config.getfloat("pa_step", 0.005, above=0.0)
-        self.line_spacing = config.getfloat("line_spacing", 3, above=2.5))
+        self.line_spacing = config.getfloat("line_spacing", 3, above=2.5)
         self.hotend_temperature = config.getfloat("hotend_temp", 200.0, minval=0.0)
         self.bed_temperature = config.getfloat("bed_temp", 60.0, minval=0.0)
         self.speed = config.getfloat("speed", 100.0, minval=0.0)
-        
+
         # Process handling
         self.proc_fd = None
         self.partial_output = ""
         self.full_output = ""
-        
+
         # Save test pattern params used in the last run for later analysis
-        self.last_pattern_params = {
-        }
-        
+        self.last_pattern_params = {}
+
         # Register commands
         self.gcode.register_command(
-            "SET_PRESSURE_ADVANCE_CAMERA", 
+            "SET_PRESSURE_ADVANCE_CAMERA",
             self.cmd_SET_PRESSURE_ADVANCE_CAMERA,
-            desc=self.cmd_SET_PRESSURE_ADVANCE_CAMERA_help
+            desc=self.cmd_SET_PRESSURE_ADVANCE_CAMERA_help,
         )
         self.gcode.register_command(
-            "DRAW_PRESSURE_ADVANCE_PATTERN", 
+            "DRAW_PRESSURE_ADVANCE_PATTERN",
             self.cmd_DRAW_PRESSURE_ADVANCE_PATTERN,
-            desc=self.cmd_DRAW_PRESSURE_ADVANCE_PATTERN_help
+            desc=self.cmd_DRAW_PRESSURE_ADVANCE_PATTERN_help,
         )
-        
+
     def _process_output(self, eventime):
         if self.proc_fd is None:
             return
@@ -91,7 +93,7 @@ class PressureAdvanceCamera:
             return
         data = self.partial_output + data.decode()
         self.full_output += data
-        
+
         if "\n" not in data:
             self.partial_output = data
             return
@@ -102,22 +104,23 @@ class PressureAdvanceCamera:
         else:
             self.partial_output = ""
         self.gcode.respond_info(data)
-        
+
     cmd_DRAW_PRESSURE_ADVANCE_PATTERN_help = "Draw a pressure advance test pattern"
+
     def cmd_DRAW_PRESSURE_ADVANCE_PATTERN(self, gcmd):
         # Parse parameters
-        x_start = gcmd.get_float('X_START', self.x_start)
-        y_start = gcmd.get_float('Y_START', self.y_start)
-        width = gcmd.get_float('WIDTH', self.width)
-        pa_start = gcmd.get_float('PA_START', self.pa_start)
-        pa_end = gcmd.get_float('PA_END', self.pa_end)
-        pa_step = gcmd.get_float('PA_STEP', self.pa_step)
-        line_spacing = gcmd.get_float('LINE_SPACING', self.line_spacing)
-        speed = gcmd.get_float('SPEED', self.speed)
-        extrusion_multiplier = gcmd.get_float('EXTRUSION_MULTIPLIER', 1.0)
-        temperature = gcmd.get_float('HOTEND_TEMP', self.hotend_temperature)
-        bed_temperature = gcmd.get_float('BED_TEMP', self.bed_temperature)
-        
+        x_start = gcmd.get_float("X_START", self.x_start)
+        y_start = gcmd.get_float("Y_START", self.y_start)
+        width = gcmd.get_float("WIDTH", self.width)
+        pa_start = gcmd.get_float("PA_START", self.pa_start)
+        pa_end = gcmd.get_float("PA_END", self.pa_end)
+        pa_step = gcmd.get_float("PA_STEP", self.pa_step)
+        line_spacing = gcmd.get_float("LINE_SPACING", self.line_spacing)
+        speed = gcmd.get_float("SPEED", self.speed)
+        extrusion_multiplier = gcmd.get_float("EXTRUSION_MULTIPLIER", 1.0)
+        temperature = gcmd.get_float("HOTEND_TEMP", self.hotend_temperature)
+        bed_temperature = gcmd.get_float("BED_TEMP", self.bed_temperature)
+
         # Parameter validation
         if pa_start >= pa_end:
             raise gcmd.error("PA_START must be less than PA_END")
@@ -127,14 +130,14 @@ class PressureAdvanceCamera:
             raise gcmd.error("WIDTH must be positive")
         if line_spacing <= 0:
             raise gcmd.error("LINE_SPACING must be positive")
-            
+
         # Calculate number of lines based on PA range and step
         num_lines = int((pa_end - pa_start) / pa_step) + 1
         assert num_lines >= 2, "Not enough lines for a meaningful test"
-            
+
         # Calculate pattern height based on number of lines and spacing (double the spacing for top and bottom)
         height = (num_lines + 1 + 2) * line_spacing
-            
+
         # Save parameters for later analysis
         self.last_pattern_params["pa_start"] = pa_start
         self.last_pattern_params["pa_end"] = pa_end
@@ -143,23 +146,29 @@ class PressureAdvanceCamera:
         self.last_pattern_params["y_start"] = y_start
         self.last_pattern_params["width"] = width
         self.last_pattern_params["height"] = height
-            
+
         # Generate the G-code for the test pattern
-        gcmd.respond_info(f"Generating pressure advance test pattern with {num_lines} lines")
+        gcmd.respond_info(
+            f"Generating pressure advance test pattern with {num_lines} lines"
+        )
         gcmd.respond_info(f"Pattern dimensions: {width}mm x {height}mm")
-        
+
         # Start with standard priming and setup
         gcode = []
         gcode.append("; Pressure Advance Test Pattern")
         gcode.append("G21 ; Set units to millimeters")
         gcode.append("G90 ; Use absolute positioning")
         gcode.append("M83 ; Use relative extrusion")
-        
+
         # Set bed temperature but continue execution
-        gcode.append(f"SET_HEATER_TEMPERATURE heater=heater_bed target={bed_temperature} ; Set final bed temp")
+        gcode.append(
+            f"SET_HEATER_TEMPERATURE heater=heater_bed target={bed_temperature} ; Set final bed temp"
+        )
 
         # Set temporary nozzle temperature to prevent oozing during homing
-        gcode.append("SET_HEATER_TEMPERATURE heater=extruder target=150 ; Set temporary nozzle temp to prevent oozing during homing")
+        gcode.append(
+            "SET_HEATER_TEMPERATURE heater=extruder target=150 ; Set temporary nozzle temp to prevent oozing during homing"
+        )
         gcode.append("G4 S10 ; Allow partial nozzle warmup")
 
         # Home all axes
@@ -170,7 +179,9 @@ class PressureAdvanceCamera:
         gcode.append("G1 X0 Y0 F3000 ; Move to front corner")
 
         # Set final temperature
-        gcode.append(f"SET_HEATER_TEMPERATURE heater=extruder target={temperature} ; Set final nozzle temp")
+        gcode.append(
+            f"SET_HEATER_TEMPERATURE heater=extruder target={temperature} ; Set final nozzle temp"
+        )
 
         # Wait for nozzle temperature to stabilize
         gcode.append(f"TEMPERATURE_WAIT SENSOR=heater_bed MINIMUM={bed_temperature-3}")
@@ -178,80 +189,102 @@ class PressureAdvanceCamera:
 
         # Reset extruder
         gcode.append("G92 E0 ; Reset extruder")
-        
+
         # Move to start position
         gcode.append(f"G1 X{x_start} Y{y_start} F6000 ; Move to start position")
         gcode.append("G1 Z0.2 F1000 ; Move to printing height")
-        
+
         # Draw the outer rectangle
         extrusion_width = 0.4  # Standard nozzle width
         extrusion_height = 0.2  # Standard layer height
         rect_extrusion_rate = extrusion_width * extrusion_height * extrusion_multiplier
-      
+
         # Calculate rectangle coordinates
         x_end = x_start + width
         y_end = y_start + height
-        
+
         # Draw the rectangle outline (twice as thick)
         for offset in [0, extrusion_width]:
-            gcode.append(f"G1 X{x_start + offset} Y{y_start + offset} F6000 ; Move to inner outline start")
+            gcode.append(
+                f"G1 X{x_start + offset} Y{y_start + offset} F6000 ; Move to inner outline start"
+            )
             gcode.append("G1 F1200 ; Set moderate speed for outline")
 
             # Bottom edge
-            gcode.append(f"G1 X{x_end - offset} Y{y_start + offset} E{(width - 2*offset) * rect_extrusion_rate} ; Inner bottom edge")
+            gcode.append(
+                f"G1 X{x_end - offset} Y{y_start + offset} E{(width - 2*offset) * rect_extrusion_rate} ; Inner bottom edge"
+            )
             # Right edge
-            gcode.append(f"G1 X{x_end - offset} Y{y_end - offset} E{(height - 2*offset) * rect_extrusion_rate} ; Inner right edge")
+            gcode.append(
+                f"G1 X{x_end - offset} Y{y_end - offset} E{(height - 2*offset) * rect_extrusion_rate} ; Inner right edge"
+            )
             # Top edge
-            gcode.append(f"G1 X{x_start + offset} Y{y_end - offset} E{(width - 2*offset) * rect_extrusion_rate} ; Inner top edge")
+            gcode.append(
+                f"G1 X{x_start + offset} Y{y_end - offset} E{(width - 2*offset) * rect_extrusion_rate} ; Inner top edge"
+            )
             # Left edge
-            gcode.append(f"G1 X{x_start + offset} Y{y_start + offset} E{(height - 2*offset) * rect_extrusion_rate} ; Inner left edge")
-        
+            gcode.append(
+                f"G1 X{x_start + offset} Y{y_start + offset} E{(height - 2*offset) * rect_extrusion_rate} ; Inner left edge"
+            )
+
         # Draw test lines with slow-fast-slow pattern
         line_extrusion_rate = extrusion_width * extrusion_height * extrusion_multiplier
         slow_speed = 10  # 10 mm/s for slow segments
-        
+
         # Calculate segment lengths and extrusion amounts
         segment1_pct = 0.10  # First 10% at slow speed
         segment2_pct = 0.60  # Middle 60% at configured speed
         segment3_pct = 0.30  # Last 30% at slow speed
-            
+
         line_length = width - (3 * extrusion_width)
         segment1_length = line_length * segment1_pct
         segment2_length = line_length * segment2_pct
         segment3_length = line_length * segment3_pct
-        
+
         segment1_extrusion = segment1_length * line_extrusion_rate
         segment2_extrusion = segment2_length * line_extrusion_rate
         segment3_extrusion = segment3_length * line_extrusion_rate
 
         for i in range(num_lines):
             current_pa = pa_start + (i * pa_step)
-            y_pos = y_start + ((i+2) * line_spacing) # +2 because we want a gap at the start
+            y_pos = y_start + (
+                (i + 2) * line_spacing
+            )  # +2 because we want a gap at the start
 
             # Move to line start
             gcode.append(f"G1 Z0.3 F1000 ; Small Z hop")
-            gcode.append(f"G1 X{x_start+extrusion_width} Y{y_pos} F12000 ; Move to line start")
+            gcode.append(
+                f"G1 X{x_start+extrusion_width} Y{y_pos} F12000 ; Move to line start"
+            )
             gcode.append(f"G1 Z0.2 F1000 ; Back to printing height")
-            
+
             # Set pressure advance for this line
-            gcode.append(f"SET_PRESSURE_ADVANCE ADVANCE={current_pa:.6f} ; Set PA for line {i}")
-            
+            gcode.append(
+                f"SET_PRESSURE_ADVANCE ADVANCE={current_pa:.6f} ; Set PA for line {i}"
+            )
+
             # Draw the test line in segments with different speeds
             # Segment 1: Slow
             x_pos1 = x_start + extrusion_width + segment1_length
             gcode.append(f"G1 F{slow_speed * 60} ; Set slow speed")
-            gcode.append(f"G1 X{x_pos1:.3f} Y{y_pos} E{segment1_extrusion:.5f} ; Line {i}, slow start")
-            
+            gcode.append(
+                f"G1 X{x_pos1:.3f} Y{y_pos} E{segment1_extrusion:.5f} ; Line {i}, slow start"
+            )
+
             # Segment 2: Fast
             x_pos2 = x_pos1 + segment2_length
             gcode.append(f"G1 F{speed * 60} ; Set configured speed")
-            gcode.append(f"G1 X{x_pos2:.3f} Y{y_pos} E{segment2_extrusion:.5f} ; Line {i}, fast middle")
-            
+            gcode.append(
+                f"G1 X{x_pos2:.3f} Y{y_pos} E{segment2_extrusion:.5f} ; Line {i}, fast middle"
+            )
+
             # Segment 3: Slow
             x_pos3 = x_pos2 + segment3_length
             gcode.append(f"G1 F{slow_speed * 60} ; Set slow speed")
-            gcode.append(f"G1 X{x_pos3} Y{y_pos} E{segment3_extrusion:.5f} ; Line {i}, slow end")
-            
+            gcode.append(
+                f"G1 X{x_pos3} Y{y_pos} E{segment3_extrusion:.5f} ; Line {i}, slow end"
+            )
+
         # Finish up
         gcode.append("G1 E-4 F480 ; Retract filament")
 
@@ -262,45 +295,64 @@ class PressureAdvanceCamera:
         gcode.append(f"G1 X{x_end - extrusion_width} Y{y_start - extrusion_width}")
 
         gcode.append("G1 Z40 F1000 ; Move up")
-        #gcode.append("G92 E0 ; Reset extruder")
-        
+        # gcode.append("G92 E0 ; Reset extruder")
+
         gcode.append("M107 ; turn off fan")
-        
+
         # Execute the G-code
         self.gcode.run_script_from_command("\n".join(gcode))
-            
+
         gcmd.respond_info("Pressure advance test pattern completed")
-        
-    cmd_SET_PRESSURE_ADVANCE_CAMERA_help = "Analyze pressure advance using camera capture"
+
+    cmd_SET_PRESSURE_ADVANCE_CAMERA_help = (
+        "Analyze pressure advance using camera capture"
+    )
+
     def cmd_SET_PRESSURE_ADVANCE_CAMERA(self, gcmd):
         # Parse parameters
-        num_lines = gcmd.get_int('NUM_LINES', self.last_pattern_params["num_lines"])
-        photo_height = gcmd.get_float('PHOTO_HEIGHT', self.photo_height)
-        
+        num_lines = gcmd.get_int("NUM_LINES", self.last_pattern_params["num_lines"])
+        photo_height = gcmd.get_float("PHOTO_HEIGHT", self.photo_height)
+
         # Override camera offsets if provided in command
-        camera_offset_x = gcmd.get_float('CAMERA_OFFSET_X', self.camera_offset_x)
-        camera_offset_y = gcmd.get_float('CAMERA_OFFSET_Y', self.camera_offset_y)
-        
+        camera_offset_x = gcmd.get_float("CAMERA_OFFSET_X", self.camera_offset_x)
+        camera_offset_y = gcmd.get_float("CAMERA_OFFSET_Y", self.camera_offset_y)
+
         # Parameter validation
         if num_lines <= 0:
             raise gcmd.error("NUM_LINES must be positive")
-        
+
         # Move extruder to center of pattern for photo
-        if "x_start" in self.last_pattern_params and "width" in self.last_pattern_params and "height" in self.last_pattern_params:
-            x_center = self.last_pattern_params["x_start"] + (self.last_pattern_params["width"] / 2)
-            y_center = self.last_pattern_params["y_start"] + (self.last_pattern_params["height"] / 2)
-            
+        if (
+            "x_start" in self.last_pattern_params
+            and "width" in self.last_pattern_params
+            and "height" in self.last_pattern_params
+        ):
+            x_center = self.last_pattern_params["x_start"] + (
+                self.last_pattern_params["width"] / 2
+            )
+            y_center = self.last_pattern_params["y_start"] + (
+                self.last_pattern_params["height"] / 2
+            )
+
             # Adjust position based on camera offset so the camera is centered over the pattern
             x_position = max(0, x_center - camera_offset_x)
             y_position = max(0, y_center - camera_offset_y)
-            
+
             # Move to center position at photo height
-            self.gcode.run_script_from_command(f"G1 X{x_position} Y{y_position} F6000 ; Move for camera centering")
-            gcmd.respond_info(f"Moved to photo position (X:{x_position}, Y:{y_position}, Z:{photo_height})")
-            gcmd.respond_info(f"Camera position (X:{x_center}, Y:{y_center}) - using offset (X:{camera_offset_x}, Y:{camera_offset_y})")
-        
-        self.gcode.run_script_from_command(f"G1 Z{photo_height} F1000 ; Move to photo height")
-        
+            self.gcode.run_script_from_command(
+                f"G1 X{x_position} Y{y_position} F6000 ; Move for camera centering"
+            )
+            gcmd.respond_info(
+                f"Moved to photo position (X:{x_position}, Y:{y_position}, Z:{photo_height})"
+            )
+            gcmd.respond_info(
+                f"Camera position (X:{x_center}, Y:{y_center}) - using offset (X:{camera_offset_x}, Y:{camera_offset_y})"
+            )
+
+        self.gcode.run_script_from_command(
+            f"G1 Z{photo_height} F1000 ; Move to photo height"
+        )
+
         # dummy wait to make sure moves are finished
         self.gcode.run_script_from_command("G4 P1000")
 
@@ -316,66 +368,69 @@ class PressureAdvanceCamera:
             )
         except Exception:
             raise gcmd.error(f"Failed to execute {self.script_path}")
-        
+
         # Set up output handling
         self.proc_fd = proc.stdout.fileno()
         self.full_output = ""
         self.partial_output = ""
         hdl = reactor.register_fd(self.proc_fd, self._process_output)
-        
+
         # Wait for completion or timeout
         eventtime = reactor.monotonic()
         endtime = eventtime + self.timeout
         complete = False
-        
+
         while eventtime < endtime:
             eventtime = reactor.pause(eventtime + 0.05)
             if proc.poll() is not None:
                 complete = True
                 break
-                
+
         # Clean up
         if not complete:
             proc.terminate()
             gcmd.respond_info("Pressure advance calibration timed out")
-        
+
         if self.partial_output:
             gcmd.respond_info(self.partial_output)
             self.partial_output = ""
-            
+
         reactor.unregister_fd(hdl)
         self.proc_fd = None
-        
+
         # Check if successful
         if not complete or proc.returncode != 0:
             gcmd.respond_info("Pressure advance calibration failed")
             return
-            
+
         # Parse the output for "Best line: X"
         match = re.search(r"Best line:\s*(\d+)", self.full_output)
         if match:
             best_line = int(match.group(1))
-            
+
             # Calculate the actual pressure advance value based on line number
             pa_start = self.last_pattern_params["pa_start"]
             pa_end = self.last_pattern_params["pa_end"]
             pattern_lines = self.last_pattern_params["num_lines"]
-            
+
             pa_step = (pa_end - pa_start) / (pattern_lines - 1)
             best_pa = pa_start + ((best_line - 1) * pa_step)
-            
+
             gcmd.respond_info(f"Best line: {best_line}")
             gcmd.respond_info(f"Best pressure advance value: {best_pa:.6f}")
-            
+
             # Apply the new pressure advance value
             try:
                 gcmd.respond_info(f"Setting pressure advance to {best_pa:.6f}")
-                self.gcode.run_script_from_command(f"SET_PRESSURE_ADVANCE ADVANCE={best_pa:.6f}")
+                self.gcode.run_script_from_command(
+                    f"SET_PRESSURE_ADVANCE ADVANCE={best_pa:.6f}"
+                )
                 gcmd.respond_info("Pressure advance successfully updated")
             except Exception as e:
                 gcmd.respond_info(f"Error setting pressure advance: {str(e)}")
         else:
             gcmd.respond_info("Could not find best line number in output")
-            
+
+
 def load_config(config):
     return PressureAdvanceCamera(config)
