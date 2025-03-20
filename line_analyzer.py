@@ -65,7 +65,7 @@ class LineAnalyzer:
         return mask
 
     def _find_contours(self):
-        contours, _ = cv2.findContours(self.mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours, _ = cv2.findContours(self.mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         self.contours = [c for c in contours if cv2.contourArea(c) >= self.min_blob_area]
 
     def _group_contours_into_lines(self):
@@ -112,38 +112,34 @@ class LineAnalyzer:
             self.lines[line_idx] = (line_contours, thickness)
 
     def _determine_problematic_regions(self):
+        """
+        Splits the image vertically into left and right halves. 
+        For each half, it scans each column (x position) and computes the standard deviation 
+        of thickness values from all lines at that column. The x position with the highest 
+        standard deviation in each half is considered the problematic area. A region around 
+        that x position (expanded by region_size) is then marked as problematic.
+        """
         w = self.mask.shape[1]
-        gap_scores = np.zeros(w)
-        
-        for _, thickness in self.lines:
-            gap_scores += (thickness == 0).astype(int)
-        
-        valid_regions = []
-        region_size = int(w * 0.1)  # Fixed size for both halves
-        
+        region_size = int(w * 0.1)
+        problematic_regions = []
         for half in [slice(0, w//2), slice(w//2, w)]:
-            half_scores = gap_scores[half]
-            if np.max(half_scores) > 0:
-                peak = np.argmax(half_scores) + half.start
-                # Use consistent buffer (10% of image width from edges)
-                buffer = int(0.1 * w)
-                
-                # Ensure regions have the same width centered on peak
-                start = max(half.start + buffer, peak - region_size)
-                end = min(half.stop - buffer, peak + region_size)
-                
-                # Adjust to maintain consistent width
-                current_width = end - start
-                if current_width < 2 * region_size:
-                    # If we hit the buffer on one side, try to expand the other
-                    if start == half.start + buffer:
-                        end = min(half.stop - buffer, start + 2 * region_size)
-                    elif end == half.stop - buffer:
-                        start = max(half.start + buffer, end - 2 * region_size)
-                
-                valid_regions.append((start, end))
-        
-        self.problematic_regions = valid_regions[:2]
+            max_std = 0
+            peak = None
+            for x in range(half.start, half.stop):
+                values = []
+                for line in self.lines:
+                    thickness = line[1]
+                    values.append(thickness[x])
+                if values:
+                    column_std = np.std(values)
+                    if column_std > max_std:
+                        max_std = column_std
+                        peak = x
+            if peak is not None:
+                start = max(half.start, peak - region_size)
+                end = min(half.stop, peak + region_size)
+                problematic_regions.append((start, end))
+        self.problematic_regions = problematic_regions[:2]
 
     def _compute_smoothness_metrics(self):
         for line_idx in range(len(self.lines)):
@@ -164,11 +160,12 @@ class LineAnalyzer:
             self.lines[line_idx] = (*self.lines[line_idx], s1, s2)
 
     def get_smoothest_lines(self, top=5):
-        sorted_lines = sorted(enumerate(self.lines), key=lambda x: x[1][2])  # Sort by s1 metric
+        #sorted_lines = sorted(enumerate(self.lines), key=lambda x: x[1][2])  # Sort by metric over total line
+        sorted_lines = sorted(enumerate(self.lines), key=lambda x: x[1][3])  # Sort by metric focusing on problematic areas
         return [(i+1, line_data[2], line_data[3]) for i, line_data in sorted_lines[:top]]
 
     def _debug_output(self):
-        plt.figure(figsize=(15, 8))
+        plt.figure(figsize=(15, 10))
         plt.imshow(self.image)
         
         top_lines = self.get_smoothest_lines(5)
@@ -179,12 +176,13 @@ class LineAnalyzer:
             contours, *_ = self.lines[line_num-1]
             for cnt in contours:
                 # Draw each contour with a unique color per line
-                plt.plot(cnt[:, 0, 0], cnt[:, 0, 1], color=color, linewidth=1)
+                plt.plot(cnt[:, 0, 0], cnt[:, 0, 1], color=color, linewidth=2)
             
             # Add a label point
-            x, y, _, _ = cv2.boundingRect(contours[0])
-            plt.text(x, y-10, f'Line {line_num} (S1:{s1:.1f}, S2:{s2:.1f})', 
-                    color=color, fontsize=9, backgroundcolor='white')
+            x, y, w, h = cv2.boundingRect(contours[0])
+            # Position label to the right of the bounding rectangle
+            plt.text(x+w+15, y+h, f'Line {line_num} (S1:{s1:.1f}, S2:{s2:.1f})', 
+                     color=color, fontsize=9, backgroundcolor='white')
         
         # Add rectangles for problematic regions
         for start, end in self.problematic_regions:
