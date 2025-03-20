@@ -24,9 +24,11 @@ class RetrieveRect:
         img = image.copy()
         
         if img.shape[2] == 4:
-            img = img[:, :, :3]
+            #img = img[:, :, :3]
             mask = np.any(img > 0, axis=2)
         else:
+            raise ValueError("Image must have an alpha channel")
+            
             # Check if pixel is not black (assuming RGB)
             mask = np.any(img[:, :, :3] > 0, axis=2)
         
@@ -169,17 +171,17 @@ class RetrieveRect:
         """
         Display debug information about the processing steps.
         """
-        # Create a figure with 3 subplots
-        fig, axs = plt.subplots(1, 3, figsize=(15, 5))
+        # Create a figure with 2x2 subplots
+        fig, (axs1, axs2) = plt.subplots(2, 2, figsize=(10, 20))
         
         # Display the original image
         if original_img.shape[2] == 4:
             # If there's an alpha channel, create an RGB version for display
             rgb_img = cv2.cvtColor(original_img[:,:,:3], cv2.COLOR_BGR2RGB)
-            axs[0].imshow(rgb_img)
+            axs1[0].imshow(rgb_img)
         else:
-            axs[0].imshow(cv2.cvtColor(original_img, cv2.COLOR_BGR2RGB))
-        axs[0].set_title("Original Image")
+            axs1[0].imshow(cv2.cvtColor(original_img, cv2.COLOR_BGR2RGB))
+        axs1[0].set_title("Original Image")
         
         # Display the mask with detected corners
         debug_img = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
@@ -190,8 +192,11 @@ class RetrieveRect:
         
         for i, (corner, label, color) in enumerate(zip(corners, corner_labels, corner_colors)):
             cv2.circle(debug_img, tuple(corner.astype(int)), 10, color, -1)
-            cv2.putText(debug_img, f"{i+1}: {label}", tuple(corner.astype(int) + [10, 10]), 
-                      cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+            pt = corner.astype(int)
+            offset = [-50, -50] if pt[1] < original_img.shape[0] / 2 else [-50, 50]
+            text_position = tuple(pt + offset)
+            cv2.putText(debug_img, f"{i+1}: {label}", text_position, 
+                      cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
         
         # Draw contour outline
         for i in range(4):
@@ -199,19 +204,24 @@ class RetrieveRect:
             pt2 = tuple(corners[(i + 1) % 4].astype(int))
             cv2.line(debug_img, pt1, pt2, (0, 255, 0), 2)
             
-        axs[1].imshow(debug_img)
-        axs[1].set_title("Detected Rectangle")
+        axs1[1].imshow(debug_img)
+        axs1[1].set_title("Detected Rectangle")
         
         # Display the corrected image
         if corrected_img.shape[2] == 4:
             rgb_corrected = cv2.cvtColor(corrected_img[:,:,:3], cv2.COLOR_BGR2RGB)
-            axs[2].imshow(rgb_corrected)
+            axs2[0].imshow(rgb_corrected)
         else:
-            axs[2].imshow(cv2.cvtColor(corrected_img, cv2.COLOR_BGR2RGB))
-        axs[2].set_title("Corrected Rectangle")
+            axs2[0].imshow(cv2.cvtColor(corrected_img, cv2.COLOR_BGR2RGB))
+        axs2[0].set_title("Corrected Rectangle")
+
+        # Display the corrected image
+        axs2[1].imshow(corrected_img[:,:,3])
+        axs2[1].set_title("Corrected Rectangle Alpha")
         
         # Remove axis ticks
-        for ax in axs:
+        from itertools import chain
+        for ax in chain(axs1, axs2):
             ax.set_xticks([])
             ax.set_yticks([])
             

@@ -40,9 +40,29 @@ class LineAnalyzer:
             self.mask = (alpha > 0).astype(np.uint8) * 255
             self.image = cv2.cvtColor(img, cv2.COLOR_BGRA2RGB)
         else:
+            raise ValueError("Image must have an alpha channel")
+
             self.mask = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             _, self.mask = cv2.threshold(self.mask, 1, 255, cv2.THRESH_BINARY)
             self.image = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+        self.mask = self._clean_mask(self.mask)
+
+    def _clean_mask(self, mask):
+        """
+        Clean the mask to remove thin artifacts.
+        """
+        # Apply morphological operations to remove thin lines
+        kernel = np.ones((5, 5), np.uint8)
+        
+        # Opening operation (erosion followed by dilation)
+        # This removes small objects and thin lines
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=2)
+        
+        # Close any small holes in the rectangle
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=2)
+        
+        return mask
 
     def _find_contours(self):
         contours, _ = cv2.findContours(self.mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -194,7 +214,6 @@ if __name__ == '__main__':
         print("Usage: python3 line_analyzer.py <image_path>")
         sys.exit(1)
     
-
     img = cv2.imread(sys.argv[1], cv2.IMREAD_UNCHANGED)
     if img is None:
         raise ValueError("Image not found")
