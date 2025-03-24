@@ -7,6 +7,7 @@
 import os
 import re
 import subprocess
+import time
 
 """
 Default Configuration:
@@ -107,6 +108,67 @@ class PressureAdvanceCamera:
 
     cmd_DRAW_PRESSURE_ADVANCE_PATTERN_help = "Draw a pressure advance test pattern"
 
+    def _call_photo_script(self, prefix, gcmd):
+        x_center = self.last_pattern_params["x_start"] + (
+            self.last_pattern_params["width"] / 2
+        )
+        y_center = self.last_pattern_params["y_start"] + (
+            self.last_pattern_params["height"] / 2
+        )
+        x_position = max(0, x_center - self.camera_offset_x)
+        y_position = max(0, y_center - self.camera_offset_y)
+
+        gcmd.respond_info(
+            f"Moving to photo position for prefix '{prefix}' (X:{x_position}, Y:{y_position}, Z:{self.photo_height})"
+        )
+        self.gcode.run_script_from_command(
+            f"G1 X{x_position} Y{y_position} F6000 ; Move for photo calibration"
+        )
+        self.gcode.run_script_from_command(
+            f"G1 Z{self.photo_height} F1000 ; Move to photo height"
+        )
+        self.gcode.run_script_from_command("G4 P1000")  # wait a moment
+
+        reactor = self.printer.get_reactor()
+        try:
+            cmd = [self.script_path, str(self.camera_id), f"--photos={prefix}"]
+            gcmd.respond_info(f"Running external photo script: '{cmd}'")
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+            )
+        except Exception:
+            raise gcmd.error(f"Failed to execute {self.script_path}")
+
+        self.proc_fd = proc.stdout.fileno()
+        self.full_output = ""
+        self.partial_output = ""
+        hdl = reactor.register_fd(self.proc_fd, self._process_output)
+        eventtime = reactor.monotonic()
+        endtime = eventtime + self.timeout
+        complete = False
+
+        while eventtime < endtime:
+            eventtime = reactor.pause(eventtime + 0.05)
+            if proc.poll() is not None:
+                complete = True
+                break
+
+        if not complete:
+            proc.terminate()
+            gcmd.respond_info("Photo shooting timed out")
+        if self.partial_output:
+            gcmd.respond_info(self.partial_output)
+            self.partial_output = ""
+        reactor.unregister_fd(hdl)
+        self.proc_fd = None
+
+        if not complete or proc.returncode != 0:
+            gcmd.respond_info("Photo shooting failed")
+        else:
+            gcmd.respond_info("Photo shooting completed")
+
     def cmd_DRAW_PRESSURE_ADVANCE_PATTERN(self, gcmd):
         # Parse parameters
         x_start = gcmd.get_float("X_START", self.x_start)
@@ -173,6 +235,13 @@ class PressureAdvanceCamera:
 
         # Home all axes
         gcode.append("G28 ; Home all axes")
+
+        self.gcode.run_script_from_command("\n".join(gcode))
+        gcode = []
+
+        # get unique picture name
+        img_file = f"{int(time.time())}"
+        self._call_photo_script(f"{img_file}_before", gcmd)
 
         # Move to a safe position
         gcode.append("G1 Z50 F240 ; Move Z up to safe height")
@@ -301,6 +370,8 @@ class PressureAdvanceCamera:
 
         # Execute the G-code
         self.gcode.run_script_from_command("\n".join(gcode))
+
+        self._call_photo_script(f"{img_file}_after", gcmd)
 
         gcmd.respond_info("Pressure advance test pattern completed")
 
