@@ -30,9 +30,6 @@ class RetrieveRect:
         else:
             raise ValueError("Image must have an alpha channel")
 
-            # Check if pixel is not black (assuming RGB)
-            mask = np.any(img[:, :, :3] > 0, axis=2)
-
         # Convert mask to binary image
         mask = mask.astype(np.uint8) * 255
 
@@ -84,7 +81,7 @@ class RetrieveRect:
             return None
 
         # Filter contours by area to ignore small artifacts
-        min_area = 1000  # Adjust this value based on your images
+        min_area = 1000
         valid_contours = [cnt for cnt in contours if cv2.contourArea(cnt) > min_area]
 
         if not valid_contours:
@@ -93,20 +90,19 @@ class RetrieveRect:
         # Find the largest contour
         largest_contour = max(valid_contours, key=cv2.contourArea)
 
-        # Approximate the contour to get the corners
-        epsilon = 0.02 * cv2.arcLength(largest_contour, True)
-        corners = cv2.approxPolyDP(largest_contour, epsilon, True)
-
-        # If we don't get exactly 4 corners, try different epsilon values
-        if len(corners) != 4:
-            for scale in [0.01, 0.03, 0.05, 0.07, 0.1]:
-                epsilon = scale * cv2.arcLength(largest_contour, True)
-                corners = cv2.approxPolyDP(largest_contour, epsilon, True)
-                if len(corners) == 4:
-                    break
+        for scale in [0.01, 0.02, 0.03, 0.05, 0.07, 0.1]:
+            # Approximate the contour to get the corners
+            epsilon = scale * cv2.arcLength(largest_contour, True)
+            corners = cv2.approxPolyDP(largest_contour, epsilon, True)
+            if len(corners) == 4:
+                if self.debug:
+                    print(f"Found 4 corners using {scale} for corner detection")
+                break
 
         # If we still don't have exactly 4 corners, use minimum area rectangle
         if len(corners) != 4:
+            if self.debug:
+                print(f"Did not find 4 corners, using minAreaRect")
             rect = cv2.minAreaRect(largest_contour)
             box = cv2.boxPoints(rect)
             corners = np.int0(box)
@@ -194,12 +190,9 @@ class RetrieveRect:
         fig, (axs1, axs2) = plt.subplots(2, 2, figsize=(10, 20))
 
         # Display the original image
-        if original_img.shape[2] == 4:
-            # If there's an alpha channel, create an RGB version for display
-            rgb_img = cv2.cvtColor(original_img[:, :, :3], cv2.COLOR_BGR2RGB)
-            axs1[0].imshow(rgb_img)
-        else:
-            axs1[0].imshow(cv2.cvtColor(original_img, cv2.COLOR_BGR2RGB))
+        assert original_img.shape[2] == 4
+        rgb_img = cv2.cvtColor(original_img[:, :, :3], cv2.COLOR_BGR2RGB)
+        axs1[0].imshow(rgb_img)
         axs1[0].set_title("Original Image")
 
         # Display the mask with detected corners
@@ -236,14 +229,12 @@ class RetrieveRect:
         axs1[1].set_title("Detected Rectangle")
 
         # Display the corrected image
-        if corrected_img.shape[2] == 4:
-            rgb_corrected = cv2.cvtColor(corrected_img[:, :, :3], cv2.COLOR_BGR2RGB)
-            axs2[0].imshow(rgb_corrected)
-        else:
-            axs2[0].imshow(cv2.cvtColor(corrected_img, cv2.COLOR_BGR2RGB))
+        assert corrected_img.shape[2] == 4
+        rgb_corrected = cv2.cvtColor(corrected_img[:, :, :3], cv2.COLOR_BGR2RGB)
+        axs2[0].imshow(rgb_corrected)
         axs2[0].set_title("Corrected Rectangle")
 
-        # Display the corrected image
+        # Display the corrected images alpha channel
         axs2[1].imshow(corrected_img[:, :, 3])
         axs2[1].set_title("Corrected Rectangle Alpha")
 
