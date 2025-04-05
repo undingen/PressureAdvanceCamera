@@ -28,7 +28,7 @@ class SegmentImage:
             self.model_path,
             arguments={
                 "image_url": image_base64,
-                "model": "High Resolutions",
+                "model": "General Use (Heavy)",
                 "operating_resolution": resolution,
                 "output_format": "png",
                 "refine_foreground": refine_foreground,
@@ -65,6 +65,6 @@ class SegmentImage:
                 with open(img_path, "wb") as f:
                     f.write(response.content)
                 if tag == "image":
-                    img = cv2.imread(str(img_path))
+                    img = cv2.imread(str(img_path), cv2.IMREAD_UNCHANGED)
 
         return img
