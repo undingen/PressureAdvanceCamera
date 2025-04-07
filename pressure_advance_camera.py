@@ -199,16 +199,16 @@ class PressureAdvanceCamera:
         # Reset extruder
         gcode.append("G92 E0 ; Reset extruder")
 
+        extrusion_width = 0.4  # Standard nozzle width
+        # layer height - klipper recommends about 75% of nozzle diameter
+        extrusion_height = round(extrusion_width * 0.75, 2)
+
         # Move to start position
         gcode.append(f"G1 X{x_start} Y{y_start} F6000 ; Move to start position")
-        gcode.append("G1 Z0.2 F1000 ; Move to printing height")
+        gcode.append(f"G1 Z{extrusion_height} F1000 ; Move to printing height")
 
         # Calculate filament cross-sectional area
         filament_area = math.pi * (filament_diameter / 2) ** 2
-
-        # Draw the outer rectangle
-        extrusion_width = 0.4  # Standard nozzle width
-        extrusion_height = 0.2  # Standard layer height
 
         # Convert volume to length by dividing by filament cross-sectional area
         extrusion_rate = (
@@ -267,11 +267,11 @@ class PressureAdvanceCamera:
             )  # +2 because we want a gap at the start
 
             # Move to line start
-            gcode.append(f"G1 Z0.3 F1000 ; Small Z hop")
+            gcode.append(f"G1 Z{extrusion_height+0.1} F1000 ; Small Z hop")
             gcode.append(
                 f"G1 X{x_start+extrusion_width} Y{y_pos} F12000 ; Move to line start"
             )
-            gcode.append(f"G1 Z0.2 F1000 ; Back to printing height")
+            gcode.append(f"G1 Z{extrusion_height} F1000 ; Back to printing height")
 
             # Set pressure advance for this line
             gcode.append(
