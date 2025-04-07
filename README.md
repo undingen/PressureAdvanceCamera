@@ -77,9 +77,10 @@ To set up the software, follow these steps on the printer:
    ln -s `pwd`/pressure_advance_camera.py ../klipper/klippy/extras/
    ```
 5. **Install Dependencies:**
-   Install the `fal-client` package using pip:
+   Install the `fal-client` package using pip and OpenCV (distro package):
    ```sh
    pip3 install fal-client
+   sudo apt install python3-opencv -y
    ```
 
 ### Software Configuration
@@ -121,6 +122,7 @@ line_spacing: 3
 width: 40
 timeout: 600
 speed: 100              # Speed for the fast segments
+bed_mash:               # Name of the bed mesh to load, e.g. "default"
 ```
 
 ### Slicer Settings

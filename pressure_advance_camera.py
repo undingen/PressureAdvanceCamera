@@ -4,6 +4,7 @@
 #
 # This file may be distributed under the terms of the GNU GPLv3 license.
 
+import math
 import os
 import re
 import subprocess
@@ -29,6 +30,7 @@ line_spacing: 3
 width: 40
 timeout: 600
 speed: 100              # Speed for the fast segments
+bed_mash:               # Name of the bed mesh to load, e.g. "default"
 """
 
 
@@ -63,6 +65,7 @@ class PressureAdvanceCamera:
         self.hotend_temperature = config.getfloat("hotend_temp", 200.0, minval=0.0)
         self.bed_temperature = config.getfloat("bed_temp", 60.0, minval=0.0)
         self.speed = config.getfloat("speed", 100.0, minval=0.0)
+        self.bed_mesh = config.get("bed_mesh", "")
 
         # Process handling
         self.proc_fd = None
@@ -120,6 +123,8 @@ class PressureAdvanceCamera:
         extrusion_multiplier = gcmd.get_float("EXTRUSION_MULTIPLIER", 1.0)
         temperature = gcmd.get_float("HOTEND_TEMP", self.hotend_temperature)
         bed_temperature = gcmd.get_float("BED_TEMP", self.bed_temperature)
+        filament_diameter = gcmd.get_float("FILAMENT_DIAMETER", 1.75)
+        bed_mash = gcmd.get("BED_MASH", self.bed_mesh)
 
         # Parameter validation
         if pa_start >= pa_end:
@@ -174,6 +179,10 @@ class PressureAdvanceCamera:
         # Home all axes
         gcode.append("G28 ; Home all axes")
 
+        if bed_mash:
+            # Load bed mash
+            gcode.append(f"BED_MESH_PROFILE LOAD={bed_mash} ; Load bed mesh")
+
         # Move to a safe position
         gcode.append("G1 Z50 F240 ; Move Z up to safe height")
         gcode.append("G1 X0 Y0 F3000 ; Move to front corner")
@@ -194,10 +203,17 @@ class PressureAdvanceCamera:
         gcode.append(f"G1 X{x_start} Y{y_start} F6000 ; Move to start position")
         gcode.append("G1 Z0.2 F1000 ; Move to printing height")
 
+        # Calculate filament cross-sectional area
+        filament_area = math.pi * (filament_diameter / 2) ** 2
+
         # Draw the outer rectangle
         extrusion_width = 0.4  # Standard nozzle width
         extrusion_height = 0.2  # Standard layer height
-        rect_extrusion_rate = extrusion_width * extrusion_height * extrusion_multiplier
+
+        # Convert volume to length by dividing by filament cross-sectional area
+        extrusion_rate = (
+            extrusion_width * extrusion_height * extrusion_multiplier
+        ) / filament_area
 
         # Calculate rectangle coordinates
         x_end = x_start + width
@@ -212,23 +228,22 @@ class PressureAdvanceCamera:
 
             # Bottom edge
             gcode.append(
-                f"G1 X{x_end - offset} Y{y_start + offset} E{(width - 2*offset) * rect_extrusion_rate} ; Inner bottom edge"
+                f"G1 X{x_end - offset} Y{y_start + offset} E{(width - 2*offset) * extrusion_rate} ; Inner bottom edge"
             )
             # Right edge
             gcode.append(
-                f"G1 X{x_end - offset} Y{y_end - offset} E{(height - 2*offset) * rect_extrusion_rate} ; Inner right edge"
+                f"G1 X{x_end - offset} Y{y_end - offset} E{(height - 2*offset) * extrusion_rate} ; Inner right edge"
             )
             # Top edge
             gcode.append(
-                f"G1 X{x_start + offset} Y{y_end - offset} E{(width - 2*offset) * rect_extrusion_rate} ; Inner top edge"
+                f"G1 X{x_start + offset} Y{y_end - offset} E{(width - 2*offset) * extrusion_rate} ; Inner top edge"
             )
             # Left edge
             gcode.append(
-                f"G1 X{x_start + offset} Y{y_start + offset} E{(height - 2*offset) * rect_extrusion_rate} ; Inner left edge"
+                f"G1 X{x_start + offset} Y{y_start + offset} E{(height - 2*offset) * extrusion_rate} ; Inner left edge"
             )
 
         # Draw test lines with slow-fast-slow pattern
-        line_extrusion_rate = extrusion_width * extrusion_height * extrusion_multiplier
         slow_speed = 10  # 10 mm/s for slow segments
 
         # Calculate segment lengths and extrusion amounts
@@ -241,9 +256,9 @@ class PressureAdvanceCamera:
         segment2_length = line_length * segment2_pct
         segment3_length = line_length * segment3_pct
 
-        segment1_extrusion = segment1_length * line_extrusion_rate
-        segment2_extrusion = segment2_length * line_extrusion_rate
-        segment3_extrusion = segment3_length * line_extrusion_rate
+        segment1_extrusion = segment1_length * extrusion_rate
+        segment2_extrusion = segment2_length * extrusion_rate
+        segment3_extrusion = segment3_length * extrusion_rate
 
         for i in range(num_lines):
             current_pa = pa_start + (i * pa_step)
