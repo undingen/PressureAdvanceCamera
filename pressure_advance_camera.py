@@ -124,6 +124,7 @@ class PressureAdvanceCamera:
         temperature = gcmd.get_float("HOTEND_TEMP", self.hotend_temperature)
         bed_temperature = gcmd.get_float("BED_TEMP", self.bed_temperature)
         filament_diameter = gcmd.get_float("FILAMENT_DIAMETER", 1.75)
+        nozzle_diameter = gcmd.get_float("NOZZLE_DIAMETER", 0.4)
         bed_mash = gcmd.get("BED_MASH", self.bed_mesh)
 
         # Parameter validation
@@ -199,9 +200,9 @@ class PressureAdvanceCamera:
         # Reset extruder
         gcode.append("G92 E0 ; Reset extruder")
 
-        extrusion_width = 0.4  # Standard nozzle width
+        extrusion_width = round(nozzle_diameter * 1.2, 2)
         # layer height - klipper recommends about 75% of nozzle diameter
-        extrusion_height = round(extrusion_width * 0.75, 2)
+        extrusion_height = round(nozzle_diameter * 0.75, 2)
 
         # Move to start position
         gcode.append(f"G1 X{x_start} Y{y_start} F6000 ; Move to start position")
