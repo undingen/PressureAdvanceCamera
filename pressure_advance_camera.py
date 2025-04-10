@@ -372,8 +372,8 @@ class PressureAdvanceCamera:
             f"G1 Z{photo_height} F1000 ; Move to photo height"
         )
 
-        # dummy wait to make sure moves are finished
-        self.gcode.run_script_from_command("G4 P1000")
+        # Wait for moves to finish
+        self.gcode.run_script_from_command("M400 ; Wait for moves to finish")
 
         reactor = self.printer.get_reactor()
         try:
