@@ -47,7 +47,7 @@ Please watch this Video where I explain the project:
    - Attach a USB endoscope camera to the printhead, facing straight down at the build plate.
    - A sample mount for the **Ender 3** using the BLTouch mount is provided here.
 2. **Camera Orientation:**
-   - Plug the camera into a phone first to verify orientation. Rotate it **90° to the left** so that the test pattern lines run from top to bottom in the captured image, maximizing the camera’s resolution.
+   - Plug the camera into a phone first to verify orientation or if setup in crowsnest: check in the browser. Rotate it **90° to the left** so that the test pattern lines run from top to bottom in the captured image, maximizing the camera’s resolution.
 3. **Lighting:**
    - Ensure adequate lighting with no significant glare or reflections on the build plate where the test pattern will be printed.
 4. **Connect the Camera:**
@@ -85,8 +85,11 @@ To set up the software, follow these steps on the printer:
 
 ### Software Configuration
 
-1. **Crowsnest Check:**
-   - Ensure the camera is not being used by crowsnest to avoid conflicts. You may have to comment out the camera section.
+1. **Crowsnest Check (if camera is configured in Crownsnest else skip this step):**
+   - Ensure the camera uses the best resolution available in your `crowsnest.conf` configuration.
+     ```
+     resolution: 1920x1080
+     ```
 2. **Update `printer.cfg`:**
    - Add the following section to your Klipper `printer.cfg` file and cheange the values:
      ```ini
@@ -110,7 +113,8 @@ camera_offset_y:        # Y offset from nozzle to camera, negative is infront of
 photo_height:           # Height in mm to position the nozzle for photo - for my cam 5-6cm
 
 script_path: ~/PressureAdvanceCamera/pa_calibrate.py
-camera_id: 0            # OpenCV camera ID
+#camera_id: 0            # OpenCV Camera ID or crowsnest url
+camera_id: "http://localhost/webcam/?action=snapshot"
 x_start: 2              # where to start the pattern
 y_start: 2              # where to start the pattern
 pa_start: 0.0

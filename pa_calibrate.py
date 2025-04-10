@@ -11,47 +11,17 @@ import time
 
 import cv2
 
+from capture_frame import capture_frame
 from line_analyzer import LineAnalyzer
 from retrieve_rect import RetrieveRect
 from segment_image import SegmentImage
-
-
-def capture_frame(camera_id, output_filename="frame.jpg"):
-    cap = cv2.VideoCapture(camera_id, cv2.CAP_V4L2)
-
-    # Set resolution to 1920x1080
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
-
-    # Set MJPEG format (if supported by your camera)
-    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
-
-    time.sleep(1)
-    ret, frame = cap.read()
-
-    if ret:
-        # Flip the image horizontally and vertically
-        frame = cv2.flip(frame, -1)
-
-        frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
-
-        cv2.imwrite(output_filename, frame)
-        print(f"Frame captured and saved as {output_filename}")
-    else:
-        print("Failed to capture frame")
-
-    cap.release()
-    cv2.destroyAllWindows()
-
-    return ret
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Capture a frame from a camera and find best line."
     )
     parser.add_argument(
-        "camera_id", type=int, help="Camera ID to capture the frame from"
+        "camera_id", help="Camera ID (integer) or URL to capture the frame from"
     )
     parser.add_argument("num_lines", type=int, help="Number of lines in image")
     args = parser.parse_args()
@@ -83,12 +53,15 @@ if __name__ == "__main__":
         print(f"Error reading the API key file: {e}")
         exit(1)
 
-    # Catpure the image from the camera - retry sometimes capturing fails
+    # Capture the image from the camera - retry sometimes capturing fails
     captured_frame = False
     for _ in range(3):
         try:
-            captured_frame = capture_frame(args.camera_id, img_file)
-            if captured_frame:
+            frame = capture_frame(args.camera_id)
+            if frame is not None:
+                cv2.imwrite(img_file, frame)
+                print(f"Frame captured from camera and saved as {img_file}")
+                captured_frame = True
                 break
         except Exception as e:
             print("Error during capture. Retrying...")

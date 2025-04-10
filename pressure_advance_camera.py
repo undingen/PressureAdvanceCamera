@@ -18,7 +18,8 @@ camera_offset_y:        # Y offset from nozzle to camera, negative is infront of
 photo_height:           # Height in mm to position the nozzle for photo - for my cam 5-6cm
 
 script_path: ~/PressureAdvanceCamera/pa_calibrate.py
-camera_id: 0            # OpenCV camera ID
+#camera_id: 0           # OpenCV Camera ID or crowsnest url
+camera_id: "http://localhost/webcam/?action=snapshot"
 x_start: 2              # where to start the pattern
 y_start: 2              # where to start the pattern
 pa_start: 0.0
@@ -49,7 +50,9 @@ class PressureAdvanceCamera:
 
         # Configuration parameters
         self.timeout = config.getfloat("timeout", 60.0 * 10, above=0.0)
-        self.camera_id = config.getint("camera_id", 0, minval=0)
+        self.camera_id = config.get(
+            "camera_id", "http://localhost/webcam/?action=snapshot"
+        )
         self.camera_offset_x = config.getfloat("camera_offset_x")
         self.camera_offset_y = config.getfloat("camera_offset_y")
         self.photo_height = config.getfloat("photo_height")
